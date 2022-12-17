@@ -3,7 +3,6 @@
 
 #include "wasinnfunc.h"
 #include "common/log.h"
-
 #include <string>
 
 #ifdef WASMEDGE_PLUGIN_WASI_NN_BACKEND_OPENVINO
@@ -14,8 +13,65 @@
 
 #ifdef WASMEDGE_PLUGIN_WASI_NN_BACKEND_TORCH
 #include <iostream>
-
+#include <torch/script.h>
 #include <torch/torch.h>
+torch::Device device_0=torch::cuda::is_available() ? torch::kCUDA :torch::kCPU;
+// int check_v(){
+//     printf("\033[1;40;32m %s \033[0m !\n","start to check device");
+//     return 1;
+// }
+// int y=check_v();
+// // torch::Device device_0(torch::cuda::is_available() ? torch::kCUDA :torch::kCPU);
+// // #define device_0 torch::kCPU
+// // #define device_0 torch::kCUDA
+// int info_out(){
+//     // printf("\033[1;40;32m %s \033[0m !\n","invoke from here");
+//     // std::cout<<"\033[1;40;32m invoke from "<<device_0<<" \033[0m !\n"<<std::flush;
+//     bool x = torch::cuda::is_available();
+//     printf("\033[1;40;32m is_available: %d \033[0m !\n",x);
+//     // fflush(stdout);
+//     // if(x == true){
+//     // torch::jit::script::Module module;
+//     // torch::Device device_0(torch::cuda::is_available() ? torch::kCUDA :torch::kCPU);
+//     // try {
+//     //   module = torch::jit::load("/home/waynexzhou/main/traced_resnet_model.pt", device_0);//CUDA
+//     //   module.eval();
+//     //   std::cout<<"\033[1;40;32m invoke from "<<device_0<<" \033[0m !\n"<<std::flush;
+//     // }
+//     // catch (const c10::Error& e) {
+//     //   std::cerr << "error loading the model\n"<<std::flush;
+//     //   return -1;
+//     // }
+//     // at::Tensor input_tensor=torch::ones({1, 3, 224, 224});
+//     // // input_tensor=input_tensor.to(device_0);
+//     // std::vector<torch::jit::IValue> inputs;
+//     // inputs.push_back(input_tensor);// use CPU on CUDA
+//     // inputs[0]=input_tensor.clone().to(device_0);
+//     // at::Tensor output0 = module.forward(inputs).toTensor();
+//     // std::cout << output0.slice(/*dim=*/1, /*start=*/0, /*end=*/5) << '\n'<<std::flush;
+//     // }
+    
+    
+//     // at::Tensor input_tensor=torch::ones({1, 3, 224, 224});
+//     // // input_tensor=input_tensor.to(device_0);
+//     // std::vector<torch::jit::IValue> inputs;
+//     // inputs.push_back(input_tensor);// use CPU on CUDA
+//     // printf("\033[1;40;32m %s \033[0m !\n","[CPU-test] tensor-ing...");
+//     // inputs[0]=input_tensor.clone().to(device_0);
+//     // printf("\033[1;40;32m %s \033[0m !\n","[CPU-test] tensor already targeted device");
+//     // try{
+//     //   at::Tensor output0 = module.forward(inputs).toTensor();
+//     //   printf("\033[1;40;32m %s \033[0m !\n","[CPU-test] forward computation");
+//     //   std::cout << output0.slice(/*dim=*/1, /*start=*/0, /*end=*/5) << '\n'<<std::flush;
+//     // }
+//     // catch (...) {
+//     //   std::cerr << "error forward computing the model\n"<<std::flush;
+//     //   return -1;
+//     // }
+    
+//     return 1;
+// }
+// int x=info_out();
 #endif
 
 #ifdef WASMEDGE_PLUGIN_WASI_NN_BACKEND_TFLITE
@@ -23,6 +79,7 @@
 #endif
 
 namespace WasmEdge {
+
 namespace Host {
 
 namespace {
@@ -52,12 +109,18 @@ Expect<uint32_t> WasiNNLoad::body(const Runtime::CallingFrame &Frame,
                                   uint32_t Encoding, uint32_t Target,
                                   uint32_t GraphIdPtr [[maybe_unused]]) {
   // Check memory instance from module.
+  // printf("\033[1;40;32m %s \033[0m !\n","Check memory instance from module.");
+  // fflush(stdout);
   auto *MemInst = Frame.getMemoryByIndex(0);
+  // printf("\033[1;40;32m %s \033[0m !\n","memory checkpoint 1 .");
+  // fflush(stdout);
   if (MemInst == nullptr) {
     return Unexpect(ErrCode::Value::HostFuncError);
   }
   // Check the return value: GraphIdPtr should be valid.
   uint32_t *GraphId = MemInst->getPointer<uint32_t *>(GraphIdPtr, 1);
+  // printf("\033[1;40;32m %s \033[0m !\n","memory checkpoint 2 .");
+  // fflush(stdout);
   if (unlikely(GraphId == nullptr)) {
     spdlog::error("[WASI-NN] Failed when accessing the return GraphID memory.");
     return static_cast<uint32_t>(WASINN::ErrNo::InvalidArgument);
@@ -65,10 +128,11 @@ Expect<uint32_t> WasiNNLoad::body(const Runtime::CallingFrame &Frame,
   // Get and check the device name string.
   std::string DeviceName;
   DeviceName = FindDevice(Target);
-  if (unlikely(DeviceName.length() == 0)) {
-    spdlog::error("[WASI-NN] Only support CPU target");
-    return static_cast<uint32_t>(WASINN::ErrNo::InvalidArgument);
-  }
+  // if (unlikely(DeviceName.length() == 0)) {
+  //   spdlog::error("[WASI-NN] Only support CPU target");
+  //   return static_cast<uint32_t>(WASINN::ErrNo::InvalidArgument);
+  // }
+  // printf("\033[1;40;32m FindDevice: %s \033[0m !\n",DeviceName.c_str());
   spdlog::debug("[WASI-NN] Using device: {:s}", DeviceName);
 
   if (Encoding == static_cast<uint32_t>(WASINN::Backend::OpenVINO)) {
@@ -253,11 +317,15 @@ Expect<uint32_t> WasiNNLoad::body(const Runtime::CallingFrame &Frame,
   } else if (Encoding == static_cast<uint32_t>(WASINN::Backend::PyTorch)) {
 #ifdef WASMEDGE_PLUGIN_WASI_NN_BACKEND_TORCH
     // The graph builder length must be 2.
+  //   printf("\033[1;40;32m %s \033[0m !\n","memory checkpoint 3.");
+  // fflush(stdout);
     if (BuilderLen != 1) {
       spdlog::error("[WASI-NN] Wrong GraphBuilder Length {:d}, expect 1",
                     BuilderLen);
       return static_cast<uint32_t>(WASINN::ErrNo::InvalidArgument);
     }
+  //   printf("\033[1;40;32m %s \033[0m !\n","memory checkpoint 4 .");
+  // fflush(stdout);
     uint32_t *GraphBuilders =
         MemInst->getPointer<uint32_t *>(BuilderPtr, BuilderLen * 2);
     if (unlikely(GraphBuilders == nullptr)) {
@@ -267,6 +335,8 @@ Expect<uint32_t> WasiNNLoad::body(const Runtime::CallingFrame &Frame,
 
     uint32_t BinLen = GraphBuilders[1];
     uint8_t *BinPtr = MemInst->getPointer<uint8_t *>(GraphBuilders[0], BinLen);
+  //   printf("\033[1;40;32m %s \033[0m !\n","memory checkpoint 5 .");
+  // fflush(stdout);
     if (unlikely(BinPtr == nullptr)) {
       spdlog::error("[WASI-NN] Failed when accessing the Weight memory.");
       return static_cast<uint32_t>(WASINN::ErrNo::InvalidArgument);
@@ -277,9 +347,15 @@ Expect<uint32_t> WasiNNLoad::body(const Runtime::CallingFrame &Frame,
     std::string BinString((char *)BinPtr, BinLen);
     std::stringstream BinRead;
     BinRead.str(BinString);
-
+    // printf("\033[1;40;32m %s \033[0m !\n","memory checkpoint 6 .");
+    // fflush(stdout);
     try {
-      Graph.TorchModel = torch::jit::load(BinRead);
+      // printf("\033[1;40;32m loading model \033[0m !\n");
+      // fflush(stdout);
+      Graph.TorchModel = torch::jit::load(BinRead, device_0);
+      // printf("\033[1;40;32m load model on %s \033[0m !\n",device_0.type());
+      // std::cout<<"\033[1;40;32m load model on "<<device_0<<" \033[0m !\n"<<std::flush;
+      Graph.TorchModel.eval();
     } catch (const c10::Error &e) {
       spdlog::error("[WASI-NN] Failed when load the TorchScript model.");
       Env.NNGraph.pop_back();
@@ -342,6 +418,7 @@ Expect<uint32_t> WasiNNLoad::body(const Runtime::CallingFrame &Frame,
 Expect<uint32_t> WasiNNInitExecCtx::body(const Runtime::CallingFrame &Frame,
                                          uint32_t GraphId,
                                          uint32_t ContextPtr [[maybe_unused]]) {
+  // printf("\033[1;40;32m %s \033[0m !\n","WasiNNInitExecCtx");
   auto *MemInst = Frame.getMemoryByIndex(0);
   if (MemInst == nullptr) {
     return Unexpect(ErrCode::Value::HostFuncError);
@@ -433,6 +510,7 @@ Expect<uint32_t> WasiNNSetInput::body(const Runtime::CallingFrame &Frame,
                                       uint32_t Context,
                                       uint32_t Index [[maybe_unused]],
                                       uint32_t TensorPtr [[maybe_unused]]) {
+  // printf("\033[1;40;32m %s \033[0m !\n","WasiNNSetInput::body");
   auto *MemInst = Frame.getMemoryByIndex(0);
   if (MemInst == nullptr) {
     return Unexpect(ErrCode::Value::HostFuncError);
@@ -633,8 +711,10 @@ Expect<uint32_t> WasiNNSetInput::body(const Runtime::CallingFrame &Frame,
     }
     torch::Tensor InTensor = torch::from_blob(
         reinterpret_cast<float *>(TensorDataBuf), Dims, Options);
-
-    CxtRef.TorchInputs[Index] = InTensor.clone();
+    // std::cout<<"\033[1;40;32m tensor targeting \033[0m !\n"<<std::flush;
+    CxtRef.TorchInputs[Index] = InTensor.clone().to(device_0);
+    // printf("\033[1;40;32m target tensor on %s \033[0m !\n",device_0.type());
+    // std::cout<<"\033[1;40;32m target tensor on "<<device_0<<" \033[0m !\n"<<std::flush;
     return static_cast<uint32_t>(WASINN::ErrNo::Success);
 #else
     spdlog::error("[WASI-NN] PyTorch backend is not built. use "
@@ -721,12 +801,13 @@ Expect<uint32_t> WasiNNSetInput::body(const Runtime::CallingFrame &Frame,
   return static_cast<uint32_t>(WASINN::ErrNo::InvalidArgument);
 }
 
-Expect<uint32_t>
+Expect<uint32_t> 
 WasiNNGetOuput::body(const Runtime::CallingFrame &Frame, uint32_t Context,
                      uint32_t Index [[maybe_unused]],
                      uint32_t OutBufferPtr [[maybe_unused]],
                      uint32_t OutBufferMaxSize [[maybe_unused]],
                      uint32_t BytesWrittenPtr [[maybe_unused]]) {
+  // printf("\033[1;40;32m %s \033[0m !\n","WasiNNGetOuput::body");                  
   auto *MemInst = Frame.getMemoryByIndex(0);
   if (MemInst == nullptr) {
     return Unexpect(ErrCode::Value::HostFuncError);
@@ -895,6 +976,7 @@ WasiNNGetOuput::body(const Runtime::CallingFrame &Frame, uint32_t Context,
 
 Expect<uint32_t> WasiNNCompute::body(const Runtime::CallingFrame &Frame,
                                      uint32_t Context) {
+  // printf("\033[1;40;32m %s \033[0m !\n","WasiNNCompute::body");
   auto *MemInst = Frame.getMemoryByIndex(0);
   if (MemInst == nullptr) {
     return Unexpect(ErrCode::Value::HostFuncError);
@@ -933,22 +1015,24 @@ Expect<uint32_t> WasiNNCompute::body(const Runtime::CallingFrame &Frame,
         return static_cast<uint32_t>(WASINN::ErrNo::InvalidArgument);
       }
     }
+    // printf("\033[1;40;32m %s \033[0m !\n","start to forward inference");
     torch::jit::IValue RawOutput =
         CxtRef.GraphRef.TorchModel.forward(CxtRef.TorchInputs);
     // TODO: more output type should be supported here
     if (RawOutput.isTensorList()) {
       auto OutTensors = RawOutput.toTensorVector();
       for (auto &OneOf : OutTensors) {
-        CxtRef.TorchOutputs.push_back(OneOf.clone());
+        CxtRef.TorchOutputs.push_back(OneOf.clone().to(torch::kCPU));
       }
     } else if (RawOutput.isTensor()) {
       auto OutTensor = RawOutput.toTensor();
-      CxtRef.TorchOutputs.push_back(OutTensor.clone());
+      CxtRef.TorchOutputs.push_back(OutTensor.clone().to(torch::kCPU));
     } else {
       spdlog::error("[WASI-NN] PyTorch backend only supports output a tensor "
                     "or a list of tensor");
       return static_cast<uint32_t>(WASINN::ErrNo::InvalidArgument);
     }
+    // printf("\033[1;40;32m %s \033[0m !\n","torch output ready");
     return static_cast<uint32_t>(WASINN::ErrNo::Success);
 #else
     spdlog::error("[WASI-NN] PyTorch backend is not built. use "
