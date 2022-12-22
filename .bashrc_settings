@@ -1,0 +1,25 @@
+# Please add these to your ~/.bashrc according to your workload settings.
+
+# C++ libtorch with cuda 11.1 support
+export PYTORCH_VERSION="1.8.2"
+export LD_LIBRARY_PATH=$HOME/libtorch-1.8.2-cu111/lib:${LD_LIBRARY_PATH}
+export Torch_DIR=$HOME/libtorch-1.8.2-cu111
+# curl -s -L -O --remote-name-all https://download.pytorch.org/libtorch/lts/1.8/cu111/libtorch-shared-with-deps-${PYTORCH_VERSION}%2Bcu111.zip
+# unzip -q "libtorch-shared-with-deps-${PYTORCH_VERSION}%2Bcu111.zip"
+
+# rust
+. "$HOME/.cargo/env"
+
+export ANDROID_SDK_HOME=$HOME/android-sdk
+# some dependencies like OpenGL EGL 
+export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu
+# cudnn 8.1.1
+export CUDA_HOME=/usr/local/cuda-11.1
+export PATH=$PATH:$CUDA_HOME/bin
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDA_HOME/lib64:$CUDA_HOME/extras/CUPTI/lib64
+
+export DISPLAY=$(awk '/nameserver / {print $2; exit}' /etc/resolv.conf 2>/dev/null):0
+export LIBGL_ALWAYS_INDIRECT=0
+
+export TF_NCCL_VERSION='2.8.4'
+export NCCL_INSTALL_PATH=/usr/local/nccl2

@@ -1,10 +1,13 @@
-<div align="right">
+# WasmEdge 0.11.2-2 (2022-12-22)
 
-  [中文](README-zh.md) | [正體中文](README-zh-TW.md)
+### GPU-enabled Torch (preferred) and TfLite backend spport.
+Based on the [WasmEdge](https://github.com/WasmEdge/WasmEdge), targeting WasiNN section (plugins/wasi_nn), we made various implementations to enable ML inference to support GPU accerlation, focusing on the WasiNN portion (plugins/wasi_nn). 
 
-</div>
+Tensorflow Lite(TfLite) still has compatibility issues, and it frequently malfunctions when used with GPU delegete. and we are waiting for the solutions.
 
-<div align="center">
+To test WasmEdge GPU ML inference, you can first set up your workload according to the [.bashrc_settings](.bashrc_settings), and then
+brower the [scripts](/scripts) and [examples](/examples) to have a test.
+you need to reset up the line 57~60 using Torch Backend(perferred) or line 75~94 using TfLite Backend in [WasmEdge-shenben/plugins/wasi_nn/CMakeLists.txt](WasmEdge-shenben/plugins/wasi_nn/CMakeLists.txt).
   
 ![WasmEdge Logo](/docs/wasmedge-runtime-logo.png)
 
