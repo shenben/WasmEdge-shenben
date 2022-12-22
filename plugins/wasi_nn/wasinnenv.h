@@ -17,6 +17,11 @@
 
 #ifdef WASMEDGE_PLUGIN_WASI_NN_BACKEND_TFLITE
 #include "tensorflow/lite/c/c_api.h"
+#include "tensorflow/lite/delegates/gpu/delegate.h"
+// #include "tensorflow/lite/interpreter.h"
+// #include "tensorflow/lite/kernels/register.h"
+// #include "tensorflow/lite/model.h"
+// #include "tensorflow/lite/optional_debug_tools.h"
 #endif
 
 namespace WasmEdge {

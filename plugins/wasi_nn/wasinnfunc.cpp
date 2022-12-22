@@ -3,7 +3,6 @@
 
 #include "wasinnfunc.h"
 #include "common/log.h"
-
 #include <string>
 
 #ifdef WASMEDGE_PLUGIN_WASI_NN_BACKEND_OPENVINO
@@ -14,15 +13,24 @@
 
 #ifdef WASMEDGE_PLUGIN_WASI_NN_BACKEND_TORCH
 #include <iostream>
-
+#include <torch/script.h>
 #include <torch/torch.h>
+torch::Device device_0=torch::cuda::is_available() ? torch::kCUDA :torch::kCPU;
 #endif
 
 #ifdef WASMEDGE_PLUGIN_WASI_NN_BACKEND_TFLITE
+#include <iostream>
+#include <typeinfo>
 #include "tensorflow/lite/c/c_api.h"
+// #include "tensorflow/lite/interpreter.h"
+// #include "tensorflow/lite/kernels/register.h"
+// #include "tensorflow/lite/model.h"
+// #include "tensorflow/lite/optional_debug_tools.h"
+#include "tensorflow/lite/delegates/gpu/delegate.h"
 #endif
-
+#define pt(var1) std::cout<<"\033[1;40;32m GPU delegate on "<<var1<<" \033[0m !\n"<<std::flush;
 namespace WasmEdge {
+
 namespace Host {
 
 namespace {
@@ -65,10 +73,10 @@ Expect<uint32_t> WasiNNLoad::body(const Runtime::CallingFrame &Frame,
   // Get and check the device name string.
   std::string DeviceName;
   DeviceName = FindDevice(Target);
-  if (unlikely(DeviceName.length() == 0)) {
-    spdlog::error("[WASI-NN] Only support CPU target");
-    return static_cast<uint32_t>(WASINN::ErrNo::InvalidArgument);
-  }
+  // if (unlikely(DeviceName.length() == 0)) {
+  //   spdlog::error("[WASI-NN] Only support CPU target");
+  //   return static_cast<uint32_t>(WASINN::ErrNo::InvalidArgument);
+  // }
   spdlog::debug("[WASI-NN] Using device: {:s}", DeviceName);
 
   if (Encoding == static_cast<uint32_t>(WASINN::Backend::OpenVINO)) {
@@ -258,6 +266,7 @@ Expect<uint32_t> WasiNNLoad::body(const Runtime::CallingFrame &Frame,
                     BuilderLen);
       return static_cast<uint32_t>(WASINN::ErrNo::InvalidArgument);
     }
+
     uint32_t *GraphBuilders =
         MemInst->getPointer<uint32_t *>(BuilderPtr, BuilderLen * 2);
     if (unlikely(GraphBuilders == nullptr)) {
@@ -277,9 +286,9 @@ Expect<uint32_t> WasiNNLoad::body(const Runtime::CallingFrame &Frame,
     std::string BinString((char *)BinPtr, BinLen);
     std::stringstream BinRead;
     BinRead.str(BinString);
-
     try {
-      Graph.TorchModel = torch::jit::load(BinRead);
+      Graph.TorchModel = torch::jit::load(BinRead, device_0);
+      Graph.TorchModel.eval();
     } catch (const c10::Error &e) {
       spdlog::error("[WASI-NN] Failed when load the TorchScript model.");
       Env.NNGraph.pop_back();
@@ -342,6 +351,7 @@ Expect<uint32_t> WasiNNLoad::body(const Runtime::CallingFrame &Frame,
 Expect<uint32_t> WasiNNInitExecCtx::body(const Runtime::CallingFrame &Frame,
                                          uint32_t GraphId,
                                          uint32_t ContextPtr [[maybe_unused]]) {
+  // printf("\033[1;40;32m %s \033[0m !\n","WasiNNInitExecCtx");
   auto *MemInst = Frame.getMemoryByIndex(0);
   if (MemInst == nullptr) {
     return Unexpect(ErrCode::Value::HostFuncError);
@@ -404,19 +414,75 @@ Expect<uint32_t> WasiNNInitExecCtx::body(const Runtime::CallingFrame &Frame,
     Env.NNContext.emplace_back(Env.NNGraph[GraphId]);
     const auto Graph = Env.NNGraph[GraphId];
     auto &NewContext = Env.NNContext.back();
-    auto *TFLiteOps = TfLiteInterpreterOptionsCreate();
-    TfLiteInterpreterOptionsSetNumThreads(TFLiteOps, 2);
-    NewContext.TFLiteInterp =
-        TfLiteInterpreterCreate(Graph.TFLiteMod, TFLiteOps);
-    TfLiteInterpreterOptionsDelete(TFLiteOps);
+    // // Initialize interpreter with GPU delegate
+    // //https://www.tensorflow.org/lite/ios/delegates/gpu
+    // TfLiteInterpreterOptions* options = TfLiteInterpreterOptionsCreate();
+    // TfLiteDelegate* delegate = TFLGPUDelegateCreate(nullptr);  // default config
+    
+    // // Create a TfLite delegate object.
+    // tflite::gpu::delegate::TfLiteGpuDelegateOptions options;
+    // std::unique_ptr<TfLiteDelegate, decltype(&TfLiteGpuDelegateDelete)> delegate(
+    //     TfLiteGpuDelegateCreate(&options), TfLiteGpuDelegateDelete);
+    // if (!delegate) {
+    //   std::cerr << "Failed to create TfLite GPU delegate." << std::endl<<std::flush;
+    //   return 1;
+    // }
+    // TfLiteInterpreterOptionsAddDelegate(options, delegate);
+    // NewContext.TFLiteInterp =
+    //     TfLiteInterpreterCreate(Graph.TFLiteMod, options);
+    // TfLiteInterpreterOptionsDelete(options);
+
+    // // Enable use of the GPU delegate, remove below lines to get cpu
+    // // After TFlite >=2.6, initiate the gpu options
+    // TfLiteGpuDelegateOptionsV2 gpu_options = TfLiteGpuDelegateOptionsV2Default();
+    // TfLiteDelegate* delegate = TfLiteGpuDelegateV2Create(&gpu_options);
+    // if (interpreter->ModifyGraphWithDelegate(delegate) != kTfLiteOk) {
+    //   std::cout << "Fail load GPU" << std::endl;
+    //   return -1;
+    // }
+
+    // auto *TFLiteOps = TfLiteInterpreterOptionsCreate();
+    // // TfLiteInterpreterOptionsSetNumThreads(TFLiteOps, 2);
+    // NewContext.TFLiteInterp =
+    //     TfLiteInterpreterCreate(Graph.TFLiteMod, TFLiteOps);
+    // TfLiteInterpreterOptionsDelete(TFLiteOps);
+    
+    TfLiteGpuDelegateOptionsV2 options;
+    options.is_precision_loss_allowed = true;
+    auto * delegate = TfLiteGpuDelegateV2Create(&options);
+    pt(typeid(delegate).name())
+    if (!delegate) {
+      fprintf(stderr, "Failed to create TfLite GPU delegate.\n");
+      return -1;
+    }
+    // Create a TfLite interpreter object.
+    TfLiteInterpreterOptions* interpreter_options = TfLiteInterpreterOptionsCreate();
+    TfLiteInterpreterOptionsAddDelegate(interpreter_options, delegate);
+    // TfLiteInterpreter* interpreter = TfLiteInterpreterCreate(model, interpreter_options);
+    NewContext.TFLiteInterp = TfLiteInterpreterCreate(Graph.TFLiteMod, interpreter_options);
+    
+    if (!NewContext.TFLiteInterp) {
+      fprintf(stderr, "Failed to create TfLite interpreter.\n");
+      return -1;
+    }
+
     if (unlikely(NewContext.TFLiteInterp == nullptr)) {
       spdlog::error("[WASI-NN] Cannot create TFLite interpreter.");
       Env.NNContext.pop_back();
       return static_cast<uint32_t>(WASINN::ErrNo::Busy);
     }
+    // TfLiteGpuDelegateOptionsV2 gpu_options = TfLiteGpuDelegateOptionsV2Default();
+    // TfLiteDelegate* delegate = TfLiteGpuDelegateV2Create(&gpu_options);
+    // std::cout <<typeid(NewContext.TFLiteInterp).name() << std::endl;
+    // if (NewContext.TFLiteInterp->ModifyGraphWithDelegate(delegate) != kTfLiteOk) {
+    //   std::cout << "Fail load GPU" << std::endl;
+    //   return -1;
+    // }
     TfLiteInterpreterAllocateTensors(NewContext.TFLiteInterp);
 
     *Context = Env.NNContext.size() - 1;
+    // TfLiteGpuDelegateV2Delete(delegate);
+    // TfLiteInterpreterOptionsDelete(interpreter_options);
     return static_cast<uint32_t>(WASINN::ErrNo::Success);
 #else
     spdlog::error(
@@ -633,8 +699,10 @@ Expect<uint32_t> WasiNNSetInput::body(const Runtime::CallingFrame &Frame,
     }
     torch::Tensor InTensor = torch::from_blob(
         reinterpret_cast<float *>(TensorDataBuf), Dims, Options);
-
-    CxtRef.TorchInputs[Index] = InTensor.clone();
+    // std::cout<<"\033[1;40;32m tensor targeting \033[0m !\n"<<std::flush;
+    CxtRef.TorchInputs[Index] = InTensor.clone().to(device_0);
+    // printf("\033[1;40;32m target tensor on %s \033[0m !\n",device_0.type());
+    // std::cout<<"\033[1;40;32m target tensor on "<<device_0<<" \033[0m !\n"<<std::flush;
     return static_cast<uint32_t>(WASINN::ErrNo::Success);
 #else
     spdlog::error("[WASI-NN] PyTorch backend is not built. use "
@@ -721,12 +789,12 @@ Expect<uint32_t> WasiNNSetInput::body(const Runtime::CallingFrame &Frame,
   return static_cast<uint32_t>(WASINN::ErrNo::InvalidArgument);
 }
 
-Expect<uint32_t>
+Expect<uint32_t> 
 WasiNNGetOuput::body(const Runtime::CallingFrame &Frame, uint32_t Context,
                      uint32_t Index [[maybe_unused]],
                      uint32_t OutBufferPtr [[maybe_unused]],
                      uint32_t OutBufferMaxSize [[maybe_unused]],
-                     uint32_t BytesWrittenPtr [[maybe_unused]]) {
+                     uint32_t BytesWrittenPtr [[maybe_unused]]) {                  
   auto *MemInst = Frame.getMemoryByIndex(0);
   if (MemInst == nullptr) {
     return Unexpect(ErrCode::Value::HostFuncError);
@@ -895,6 +963,7 @@ WasiNNGetOuput::body(const Runtime::CallingFrame &Frame, uint32_t Context,
 
 Expect<uint32_t> WasiNNCompute::body(const Runtime::CallingFrame &Frame,
                                      uint32_t Context) {
+  // printf("\033[1;40;32m %s \033[0m !\n","WasiNNCompute::body");
   auto *MemInst = Frame.getMemoryByIndex(0);
   if (MemInst == nullptr) {
     return Unexpect(ErrCode::Value::HostFuncError);
@@ -939,11 +1008,11 @@ Expect<uint32_t> WasiNNCompute::body(const Runtime::CallingFrame &Frame,
     if (RawOutput.isTensorList()) {
       auto OutTensors = RawOutput.toTensorVector();
       for (auto &OneOf : OutTensors) {
-        CxtRef.TorchOutputs.push_back(OneOf.clone());
+        CxtRef.TorchOutputs.push_back(OneOf.clone().to(torch::kCPU));
       }
     } else if (RawOutput.isTensor()) {
       auto OutTensor = RawOutput.toTensor();
-      CxtRef.TorchOutputs.push_back(OutTensor.clone());
+      CxtRef.TorchOutputs.push_back(OutTensor.clone().to(torch::kCPU));
     } else {
       spdlog::error("[WASI-NN] PyTorch backend only supports output a tensor "
                     "or a list of tensor");
