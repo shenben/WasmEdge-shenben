@@ -7,7 +7,7 @@ Tensorflow Lite(TfLite) still has compatibility issues, and it frequently malfun
 
 To test WasmEdge GPU ML inference, you can first set up your workload according to the [.bashrc_settings](.bashrc_settings), and then
 brower the [scripts](/scripts) and [examples](/examples) to have a test.
-you need to reset up the line 57~60 using Torch Backend(perferred) or line 75~94 using TfLite Backend in [WasmEdge-shenben/plugins/wasi_nn/CMakeLists.txt](WasmEdge-shenben/plugins/wasi_nn/CMakeLists.txt).
+you need to reset up the line 57 ~ 60 using Torch Backend(perferred) or line 75 ~ 94 using TfLite Backend in [WasmEdge-shenben/plugins/wasi_nn/CMakeLists.txt](WasmEdge-shenben/plugins/wasi_nn/CMakeLists.txt).
   
 ![WasmEdge Logo](/docs/wasmedge-runtime-logo.png)
 
